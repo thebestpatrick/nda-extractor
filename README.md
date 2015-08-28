@@ -1,5 +1,6 @@
 # nda-extractor
 Extracts data from Neware binary files (.nda)
+Run it with ./binary2csv.py [path to input file]
 
 ## Notes about headers
 0000:0000-0000:0070 = Software id and date with some other stuff
