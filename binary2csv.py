@@ -69,7 +69,8 @@ def process_byte_stream(byte_stream):
     # end blank?
 
     # FIXME not sure how this works, though it seems to be related to the 
-    # column right before the timestamp
+    # column right before the timestamp, which is allegedly some kind of 
+    # total charge measure.  
     comp1 = int.from_bytes(byte_stream[30:38], byteorder='little')
 
     comp2 = int.from_bytes(byte_stream[38:46], byteorder='little')
@@ -128,7 +129,7 @@ for x in csv_line_order:
 outfile.write('\n')
 
 with open(sys.argv[1], "rb") as f:
-    f.seek(header_size) # TODO: header decoding
+    f.seek(header_size) # TODO: header decoding, including finding a mass
     byte = f.read(1)  
     pos = 0
     while byte:
