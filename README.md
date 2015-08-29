@@ -1,7 +1,7 @@
 # nda-extractor
 Extracts data from Neware binary files (.nda)
 
-Run it with ./binary2csv.py [path to input file]
+Run it with ./binary2csv.py (path to input file) (path to output file)
 
 Planned functions:
   * Header metadata extraction

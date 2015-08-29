@@ -4,17 +4,7 @@ import binascii
 import time
 import math
 import datetime
-
-header_size = 2304
-
-file_size = header_size
-byte_line = []
-
-line_size = 59
-mini_header_size = 0
-
-line_number = 0
-main_data = False
+import csv
 
 
 # Return a dict containing the relevant data.  all nice and pretty like.
@@ -102,58 +92,72 @@ def process_byte_stream(byte_stream):
     raw_bin = str(binascii.hexlify(bytearray(byte_stream)))
     curr_dict['RAW_BIN'] = raw_bin
     #time.sleep(.1)
+    
     return curr_dict
 
 
+def process_header(header_bytes):
+    pass
+
+
 def dict_to_csv_line(indict, lorder):
-    csv_line = ""
+    csv_line = []
     for a in lorder:
         if a == 'time_in_step':
             seconds = indict[a]
             m, s = divmod(seconds, 60)
             h, m = divmod(m, 60)
-            csv_line += "%d:%02d:%02d" % (h, m, s) + ','
+            csv_line.append("%d:%02d:%02d" % (h, m, s))
         else:
-            csv_line += str(indict[a]) + ','
-    csv_line += '\n'
+            csv_line.append(str(indict[a]))
     return csv_line
 
-# TODO: load from config
-csv_line_order = ['line_id', 'col2', 'step_id', 'step_job','time_in_step', 
-            'voltage', 'current', 'blank', 'comp1', 'comp2', 'algo_comp', 
-            'timestamp', 'last', 'RAW_BIN']
+def process_nda(inpath, outpath, csv_line_order=['line_id', 'col2', 
+            'step_id', 'step_job','time_in_step', 'voltage', 'current', 'blank', 
+            'comp1', 'comp2', 'algo_comp', 'timestamp', 'last', 'RAW_BIN']):
+    header_size = 2304
 
-outfile = open("test.csv", 'w')
-for x in csv_line_order:
-    outfile.write(x + ',')
-outfile.write('\n')
+    byte_line = []
 
-with open(sys.argv[1], "rb") as f:
-    f.seek(header_size) # TODO: header decoding, including finding a mass
-    byte = f.read(1)  
-    pos = 0
-    while byte:
-        file_size += 1
-        if not main_data:
-            local = int.from_bytes(byte, byteorder='little')
-            if local == 255:
-                main_data = True
-                # TODO: Secondary header decoding
-                f.seek(mini_header_size, 1)
-                continue
-            else:
-                #print(local)
-                #time.sleep(.1)
-                byte = f.read(1)
-                continue
-        
-        line = f.read(59)
-        if line == b'':
-            break
+    line_size = 59
+
+    line_number = 0
+    main_data = False
+    
+    outfile = open(outpath, 'w')
+    csv_out = csv.writer(outfile, delimiter=',', quotechar="\"")
+    csv_out.writerow(csv_line_order)
+
+    with open(inpath, "rb") as f:
+        header_bytes = f.read(header_size) 
+        # TODO: header decoding, including finding a mass
+        process_header(header_bytes)
+        byte = f.read(1)  
+        pos = 0
+        while byte:
+            if not main_data:
+                local = int.from_bytes(byte, byteorder='little')
+                if local == 255:
+                    main_data = True
+                    # TODO: Secondary header decoding
+                    continue
+                else:
+                    #print(local)
+                    #time.sleep(.1)
+                    byte = f.read(1)
+                    continue
+            # TODO: Lines 1 and 3 seem to require special treatment.  
+            line = f.read(59)
+            if line == b'':
+                break
                
-        dict_line = process_byte_stream(line)
-        csv_line = dict_to_csv_line(dict_line, csv_line_order)
-        #print(csv_line)
-        outfile.write(csv_line)
+            dict_line = process_byte_stream(line)
+            csv_line = dict_to_csv_line(dict_line, csv_line_order)
+            #print(csv_line)
+            
+            csv_out.writerow(csv_line)
+    outfile.close()
 
-outfile.close()
+
+if __name__ == "__main__":
+        process_nda(sys.argv[1], sys.argv[2])
