@@ -6,6 +6,25 @@ import math
 import datetime
 import csv
 
+def get_step_name(s):
+    if s == 1:
+        return "CC_Chg"
+    
+    elif s == 2:
+        return "CC_Dchg"
+    
+    # TODO: 3
+    
+    elif s == 4:
+        return "Rest"
+    # TODO: 5, 6
+
+    elif s == 7:
+        return "CCCV_Chg"
+    # TODO: The rest
+    else:
+        return str(s)
+
 
 # Return a dict containing the relevant data.  all nice and pretty like.
 def process_byte_stream(byte_stream):
@@ -13,25 +32,27 @@ def process_byte_stream(byte_stream):
 
     # Line ID
     line_idb = int.from_bytes(byte_stream[0:4], byteorder='little')
-    curr_dict['line_id'] = line_idb
+    curr_dict['record_id'] = line_idb
     # End line ID
 
-    # Second column, not sure what it is?
+    # Jumpto
     col2 = int.from_bytes(byte_stream[4:8], byteorder='little')
-    curr_dict['col2'] = col2
-    # end second column
+    curr_dict['jumpto'] = col2
+    # end jumpto
 
-    # Step ID? Might secretly be involved with col2
+    # Step ID
     sid = int.from_bytes(byte_stream[8:9], byteorder='little')
+    # If step id is zero, there is funny behavior.
     curr_dict['step_id'] = sid
     # End Step ID
 
-    # Step Job? Might be with step ID too.  In any case, probably an
+    # Step name? Might be with step ID too.  In any case, probably an
     # identifier for charge, rest, discharge, etc.
-    # 4=REST. 1=CC_Chg. 7=CCCV_Chg. 
+    # 4=REST. 1=CC_Chg. 7=CCCV_Chg. 2=CC_DChg.
     sjob = int.from_bytes(byte_stream[9:10], byteorder='little')
-    curr_dict['step_job'] = sjob
-    # End step job
+    sjob_name = get_step_name(sjob)
+    curr_dict['step_name'] = sjob_name
+    # End step name
 
     # Time in step
     tis = int.from_bytes(byte_stream[10:14], byteorder='little')
@@ -57,20 +78,22 @@ def process_byte_stream(byte_stream):
     blank = int.from_bytes(byte_stream[22:30], byteorder='little')
     curr_dict['blank'] = blank
     # end blank?
-
-    # FIXME not sure how this works, though it seems to be related to the 
-    # column right before the timestamp, which is allegedly some kind of 
-    # total charge measure.  
+    
+    # Charge and Energy
     comp1 = int.from_bytes(byte_stream[30:38], byteorder='little')
+    if comp1 > 0x7FFFFFFF:
+        comp1 -= 0x100000000
 
     comp2 = int.from_bytes(byte_stream[38:46], byteorder='little')
-    diff = round(((comp1 + comp2)/100)/.86, 2)
+    if comp2 > 0x7FFFFFFF:
+        comp2 -= 0x100000000
 
-    curr_dict['comp1'] = comp1
-    curr_dict['comp2'] = comp2
-    curr_dict['algo_comp'] = diff
+    comp1 = comp1 / 3600000
+    comp2 = comp2 / 3600000
 
-    # end FIXME
+    curr_dict['charge_mAh'] = comp1
+    curr_dict['energy_mWh'] = comp2
+    # End charge and energy
 
     # Time and date
     timestamp = int.from_bytes(byte_stream[46:54], byteorder='little')
@@ -79,8 +102,8 @@ def process_byte_stream(byte_stream):
     # end time and date
     
     # last 5?  silly number.  The last one might be an indicator, and the other 
-    # 4 might be a number
-    last = int.from_bytes(byte_stream[54:58], byteorder='little')
+    # 4 might be a number.  Possibly a checksum
+    last = int.from_bytes(byte_stream[54:59], byteorder='little')
     curr_dict['last'] = last
     # end
 
@@ -89,6 +112,7 @@ def process_byte_stream(byte_stream):
     #    stuff.append(a)
     
     #print(curr_dict)
+    # Raw binary available for bugfixing purposes only
     raw_bin = str(binascii.hexlify(bytearray(byte_stream)))
     curr_dict['RAW_BIN'] = raw_bin
     #time.sleep(.1)
@@ -97,6 +121,22 @@ def process_byte_stream(byte_stream):
 
 
 def process_header(header_bytes):
+    magic_number = header_bytes[0:6].decode('utf-8')
+    if magic_number != 'NEWARE':
+        exit(-1)
+    
+    year = header_bytes[6:10].decode('utf-8')
+    month = header_bytes[10:12].decode('utf-8')
+    day = header_bytes[12:14].decode('utf-8')
+    
+    version = header_bytes[112:142].decode('utf-8')
+
+
+    print(year, month, day)
+    print(version)
+
+
+def process_subheader(subheader_bytes):
     pass
 
 
@@ -104,17 +144,23 @@ def dict_to_csv_line(indict, lorder):
     csv_line = []
     for a in lorder:
         if a == 'time_in_step':
-            seconds = indict[a]
+            seconds = indict.get(a)
             m, s = divmod(seconds, 60)
             h, m = divmod(m, 60)
             csv_line.append("%d:%02d:%02d" % (h, m, s))
+        # FIXME: do a proper handling of these lines, I think they are special 
+        # in some way, so will need special handling.  until then, ignore them
+        elif a == "step_id" and indict.get(a) == 0:
+            return None
+
         else:
-            csv_line.append(str(indict[a]))
+            csv_line.append(str(indict.get(a)))
     return csv_line
 
-def process_nda(inpath, outpath, csv_line_order=['line_id', 'col2', 
-            'step_id', 'step_job','time_in_step', 'voltage', 'current', 'blank', 
-            'comp1', 'comp2', 'algo_comp', 'timestamp', 'last', 'RAW_BIN']):
+
+def process_nda(inpath, outpath='auto', csv_line_order=['record_id', 'jumpto', 
+            'step_id', 'step_name','time_in_step', 'voltage', 'current', 'blank', 
+            'charge_mAh', 'energy_mWh', 'timestamp', 'last']):
     header_size = 2304
 
     byte_line = []
@@ -124,39 +170,44 @@ def process_nda(inpath, outpath, csv_line_order=['line_id', 'col2',
     line_number = 0
     main_data = False
     
+    if outpath == 'auto':
+        outpath = inpath + '.csv'
+
     outfile = open(outpath, 'w')
     csv_out = csv.writer(outfile, delimiter=',', quotechar="\"")
     csv_out.writerow(csv_line_order)
-
+    
+    header_data = {}
     with open(inpath, "rb") as f:
         header_bytes = f.read(header_size) 
         # TODO: header decoding, including finding a mass
-        process_header(header_bytes)
+        header_data['main_header'] = process_header(header_bytes)
         byte = f.read(1)  
         pos = 0
+        subheader = b''
         while byte:
             if not main_data:
                 local = int.from_bytes(byte, byteorder='little')
                 if local == 255:
                     main_data = True
                     # TODO: Secondary header decoding
+                    header_data['subheader'] = process_subheader(subheader)
                     continue
                 else:
-                    #print(local)
-                    #time.sleep(.1)
+                    subheader += byte
                     byte = f.read(1)
                     continue
-            # TODO: Lines 1 and 3 seem to require special treatment.  
-            line = f.read(59)
+            line = f.read(line_size)
             if line == b'':
                 break
                
             dict_line = process_byte_stream(line)
             csv_line = dict_to_csv_line(dict_line, csv_line_order)
             #print(csv_line)
-            
-            csv_out.writerow(csv_line)
+            if csv_line:
+                csv_out.writerow(csv_line)
     outfile.close()
+    print(subheader)
 
 
 if __name__ == "__main__":
