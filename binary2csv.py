@@ -60,19 +60,19 @@ def process_byte_stream(byte_stream):
     #print(tic)
     # end time in step
 
-    # Voltage? Have to ask Will
+    # Voltage
     volts = int.from_bytes(byte_stream[14:18], byteorder='little')
     if volts > 0x7FFFFFFFFF:
         volts -= 0x100000000000000
     curr_dict['voltage'] = volts/10000
-    # End capacity?
+    # End voltage
     
-    # Current?
+    # Current
     current = int.from_bytes(byte_stream[18:22], byteorder='little')
     if current > 0x7FFFFFFF:
             current -= 0x100000000
     curr_dict['current'] = current / 10000
-    # End Current?
+    # End Current
     
     # blank? This section seems to be blank, but it might not be?
     blank = int.from_bytes(byte_stream[22:30], byteorder='little')
@@ -123,17 +123,26 @@ def process_byte_stream(byte_stream):
 def process_header(header_bytes):
     magic_number = header_bytes[0:6].decode('utf-8')
     if magic_number != 'NEWARE':
-        exit(-1)
+        # TODO: raise exception.
+        return False
     
+    # Possibly ASCI coding but whatever.  This works.
     year = header_bytes[6:10].decode('utf-8')
     month = header_bytes[10:12].decode('utf-8')
     day = header_bytes[12:14].decode('utf-8')
     
     version = header_bytes[112:142].decode('utf-8')
-
+    name = header_bytes[2166:2176].decode('utf-8')
+    comments = header_bytes[2182:2300].decode('utf-8')
+    
+    # Not sure if this is really channel stuff...
+    channel = int.from_bytes(header_bytes[2048:2049], byteorder='little')
 
     print(year, month, day)
     print(version)
+    print(name)
+    print(comments)
+    print(channel)
 
 
 def process_subheader(subheader_bytes):
@@ -158,9 +167,9 @@ def dict_to_csv_line(indict, lorder):
     return csv_line
 
 
-def process_nda(inpath, outpath='auto', csv_line_order=['record_id', 'jumpto', 
+def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto', 
             'step_id', 'step_name','time_in_step', 'voltage', 'current', 'blank', 
-            'charge_mAh', 'energy_mWh', 'timestamp', 'last']):
+            'charge_mAh', 'energy_mWh', 'timestamp']):
     header_size = 2304
 
     byte_line = []
@@ -170,10 +179,15 @@ def process_nda(inpath, outpath='auto', csv_line_order=['record_id', 'jumpto',
     line_number = 0
     main_data = False
     
-    if outpath == 'auto':
+    if outpath == ':auto:':
         outpath = inpath + '.csv'
 
-    outfile = open(outpath, 'w')
+    if outpath != ':mem:':
+        outfile = open(outpath, 'w')
+
+    else: 
+        import io
+        outfile = io.StringIO()
     csv_out = csv.writer(outfile, delimiter=',', quotechar="\"")
     csv_out.writerow(csv_line_order)
     
@@ -206,8 +220,12 @@ def process_nda(inpath, outpath='auto', csv_line_order=['record_id', 'jumpto',
             #print(csv_line)
             if csv_line:
                 csv_out.writerow(csv_line)
+    
+    if outpath == ':mem:':
+        return outfile
+    
     outfile.close()
-    print(subheader)
+    #print(subheader)
 
 
 if __name__ == "__main__":
