@@ -4,8 +4,8 @@ Extracts data from Neware binary files (.nda)
 Run it with ./binary2csv.py (path to input file) (path to output file)
 
 Planned functions:
-  * Header metadata extraction
-  * Data column finalizing (use for the last 5 bytes?)
+  * Header metadata extraction.  Partly done, no time zone info or mass info. Time zone does not appear to be in there anywhere though.
+  * Data column finalizing.  Finished, needs verification on the 'step_name'
   * Variable outputs (database, json, etc.)
   * Graphing and analysis (using numpy)
 

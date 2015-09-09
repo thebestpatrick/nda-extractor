@@ -75,6 +75,7 @@ def process_byte_stream(byte_stream):
     # End Current
     
     # blank? This section seems to be blank, but it might not be?
+    # By process of elimination, it might be tempurature.
     blank = int.from_bytes(byte_stream[22:30], byteorder='little')
     curr_dict['blank'] = blank
     # end blank?
@@ -130,19 +131,43 @@ def process_header(header_bytes):
     year = header_bytes[6:10].decode('utf-8')
     month = header_bytes[10:12].decode('utf-8')
     day = header_bytes[12:14].decode('utf-8')
+
+    hour = header_bytes[2137:2139].decode('utf-8')
+    minute = header_bytes[2140:2142].decode('utf-8')
+    second = header_bytes[2143:2145].decode('utf-8')
     
     version = header_bytes[112:142].decode('utf-8')
     name = header_bytes[2166:2176].decode('utf-8')
-    comments = header_bytes[2182:2300].decode('utf-8')
+    comments = header_bytes[2181:2300].decode('utf-8')
     
     # Not sure if this is really channel stuff...
-    channel = int.from_bytes(header_bytes[2048:2049], byteorder='little')
+    machine = int.from_bytes(header_bytes[2091:2092], byteorder='little')
+    channel = int.from_bytes(header_bytes[2092:2093], byteorder='little')
+    
+    ret = {}
+    ret['year'] = year
+    ret['month'] = month
+    ret['day'] = day
+    #print(year, month, day)
 
-    print(year, month, day)
-    print(version)
-    print(name)
-    print(comments)
-    print(channel)
+    ret['hour'] = hour
+    ret['minute'] = minute
+    ret['second'] = second
+    #print(hour, minute, second)
+    
+    ret['version'] = version
+    ret['name'] = name
+    ret['comments'] = comments
+    #print(version)
+    #print(name)
+    #print(comments)
+    
+    ret['machine'] = machine
+    ret['channel'] = channel
+    #print(machine)
+    #print(channel)
+    # TODO: find mass or something
+    return ret
 
 
 def process_subheader(subheader_bytes):
@@ -195,7 +220,12 @@ def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto',
     with open(inpath, "rb") as f:
         header_bytes = f.read(header_size) 
         # TODO: header decoding, including finding a mass
-        header_data['main_header'] = process_header(header_bytes)
+        header_data = process_header(header_bytes)
+
+        if header_data is False:
+            # TODO: Exceptions still.  but w/e
+            return False
+
         byte = f.read(1)  
         pos = 0
         subheader = b''
@@ -205,7 +235,7 @@ def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto',
                 if local == 255:
                     main_data = True
                     # TODO: Secondary header decoding
-                    header_data['subheader'] = process_subheader(subheader)
+                    #header_data['subheader'] = process_subheader(subheader)
                     continue
                 else:
                     subheader += byte
@@ -222,11 +252,13 @@ def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto',
                 csv_out.writerow(csv_line)
     
     if outpath == ':mem:':
-        return outfile
+        return outfile, header_data
     
     outfile.close()
+
+    return outpath, header_data
     #print(subheader)
 
 
 if __name__ == "__main__":
-        process_nda(sys.argv[1], sys.argv[2])
+        print(process_nda(sys.argv[1], sys.argv[2]))
