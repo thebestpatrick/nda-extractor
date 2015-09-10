@@ -124,9 +124,7 @@ def process_byte_stream(byte_stream):
 def process_header(header_bytes):
     magic_number = header_bytes[0:6].decode('utf-8')
     if magic_number != 'NEWARE':
-        # TODO: raise exception.
-        return False
-    
+        raise RuntimeError("Magic number wrong. Not valid .nda file") 
     # Possibly ASCI coding but whatever.  This works.
     year = header_bytes[6:10].decode('utf-8')
     month = header_bytes[10:12].decode('utf-8')
@@ -136,36 +134,21 @@ def process_header(header_bytes):
     minute = header_bytes[2140:2142].decode('utf-8')
     second = header_bytes[2143:2145].decode('utf-8')
     
-    version = header_bytes[112:142].decode('utf-8')
-    name = header_bytes[2166:2176].decode('utf-8')
-    comments = header_bytes[2181:2300].decode('utf-8')
+    version = header_bytes[112:142].decode('utf-8').strip()
+    name = header_bytes[2166:2176].decode('utf-8').strip('\00')
+    comments = header_bytes[2181:2300].decode('utf-8').strip('\00')
     
     # Not sure if this is really channel stuff...
     machine = int.from_bytes(header_bytes[2091:2092], byteorder='little')
     channel = int.from_bytes(header_bytes[2092:2093], byteorder='little')
     
-    ret = {}
-    ret['year'] = year
-    ret['month'] = month
-    ret['day'] = day
-    #print(year, month, day)
-
-    ret['hour'] = hour
-    ret['minute'] = minute
-    ret['second'] = second
-    #print(hour, minute, second)
-    
-    ret['version'] = version
-    ret['name'] = name
-    ret['comments'] = comments
-    #print(version)
-    #print(name)
-    #print(comments)
-    
-    ret['machine'] = machine
-    ret['channel'] = channel
-    #print(machine)
-    #print(channel)
+    #ret = {}
+    ret = {
+            'year': year, 'month': month, 'day': day, 'hour': hour, 
+            'minute': minute, 'second': second, 'version': version, 
+            'comments': comments, 'machine': machine, 'channel': channel,
+            'name': name
+          }
     # TODO: find mass or something
     return ret
 
@@ -222,11 +205,7 @@ def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto',
         # TODO: header decoding, including finding a mass
         header_data = process_header(header_bytes)
 
-        if header_data is False:
-            # TODO: Exceptions still.  but w/e
-            return False
-
-        byte = f.read(1)  
+        byte = f.read(1)
         pos = 0
         subheader = b''
         while byte:
@@ -252,11 +231,11 @@ def process_nda(inpath, outpath=':auto:', csv_line_order=['record_id', 'jumpto',
                 csv_out.writerow(csv_line)
     
     if outpath == ':mem:':
-        return outfile, header_data
+        return outfile, header_data, csv_line
     
     outfile.close()
 
-    return outpath, header_data
+    return outpath, header_data, csv_line
     #print(subheader)
 
 
