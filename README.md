@@ -1,13 +1,16 @@
 # nda-extractor
 Extracts data from Neware binary files (.nda)
 
-Run it with ./binary2csv.py (path to input file) (path to output file)
+bin2csv.py: Library functions to allow for the easy converting of binary .nda files (from Neware/MTI) into easy to process csv files.  Can be run from the command line as well, with `./bin2csv.py [binary file] [output csv]`
 
-Planned functions:
+graph.py: Library functions to allow for the easy graphing of data in the output csv format.
+
+reportgenerator.py: Combines bin2csv and graph to generate a full report, with (somewhat limited) metadata extracted as well.  Can be used as a library, or called from the command line.  Right now, when called with `./reportgenerator.py [binary file]` it will create a directory called 'reports/' and then write the full report into that.
+
+## Planned functions:
   * Header metadata extraction.  Partly done, no time zone info or mass info. Time zone does not appear to be in there anywhere though.
-  * Data column finalizing.  Finished, needs verification on the 'step_name'
-  * Variable outputs (database, json, etc.)
-  * Graphing and analysis (using numpy)
+  * Data column finalizing.  'step_name' just needs a few more cases.
+  * Directory extraction: Allowing for a full directory to be tracked 'live', generating new reports as changes occur, while skipping unchanged files.
 
 ## Notes about headers
 0000:0000-0000:0070 = Software id and date with some other stuff
